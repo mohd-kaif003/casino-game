@@ -50,14 +50,3 @@ Aap `index.php` ke JavaScript section mein in variables ko change karke game ko 
 /Mines-Pro
 ├── index.php         # Single file containing PHP, HTML, CSS, and JS logic
 ├── README.md         # Project documentation (This file)
-
-
-
----
-
-### Tips for usage:
-1. Ise apne project folder mein `README.md` naam se save kar lo.
-2. Agar tum ise **GitHub** pe upload karoge, toh ye ekdum professional dikhega.
-3. Maine niche "YourCoder.in" likha hai jo tumhari agency ka naam hai.
-
-**Bhai, kya aap chahte ho main isme database connectivity (MySQL) ka code bhi add karun taaki user ka balance permanent store ho sake?**
