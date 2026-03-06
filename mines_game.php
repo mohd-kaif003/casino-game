@@ -1,212 +1,191 @@
 <?php
 session_start();
 
-// --- 1. ADMIN SMART CONTROLS ---
-$config = [
-    "bait_clicks" => 2,        // Shuruat ke 2 clicks hamesha SAFE (Lalach ke liye)
-    "profit_limit" => 500,     // Agar user ₹500+ profit mein jaye toh bomb ke chances 95%
-    "normal_win_rate" => 30,   // Normal win chance 30%
-    "multiplier" => 2          // Har click pe paisa double (2x)
-];
-
-// Wallet Initialization
+// Initial Wallet
 if (!isset($_SESSION['wallet'])) {
     $_SESSION['wallet'] = 1000;
 }
 
-// --- 2. BACKEND API HANDLER ---
-if (isset($_GET['action'])) {
+// PHP API for Wallet Sync
+if (isset($_GET['action']) && $_GET['action'] == 'sync_wallet') {
     header('Content-Type: application/json');
-    
-    // Logic to check tile
-    if ($_GET['action'] == 'check') {
-        $clicks = (int)$_POST['clicks'];
-        $bet = (int)$_POST['bet'];
-        $current_win = (int)$_POST['current_win'];
-
-        $result = 'gem'; // Default
-
-        // Smart Logic Application
-        if ($clicks <= $config['bait_clicks']) {
-            $result = 'gem'; // Always win for bait
-        } elseif ($current_win >= $config['profit_limit']) {
-            $result = (rand(1, 100) <= 5) ? 'gem' : 'bomb'; // Hard Rigged
-        } else {
-            $result = (rand(1, 100) <= $config['normal_win_rate']) ? 'gem' : 'bomb';
-        }
-
-        echo json_encode(['status' => $result, 'mult' => $config['multiplier']]);
-        exit;
-    }
-
-    // Logic to update wallet
-    if ($_GET['action'] == 'sync') {
-        $amount = (int)$_POST['amount'];
-        $_SESSION['wallet'] += $amount;
-        echo json_encode(['bal' => $_SESSION['wallet']]);
-        exit;
-    }
+    $amount = (int)$_POST['amount'];
+    $_SESSION['wallet'] += $amount;
+    echo json_encode(['new_balance' => $_SESSION['wallet']]);
+    exit;
 }
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Mines Pro | Smart Casino</title>
+    <title>Mines Pro | Gaming App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        body { background: #0b0e14; color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; }
-        .grid-tile { background: #1c232d; border-radius: 12px; border-bottom: 4px solid #000; transition: 0.1s; cursor: pointer; }
-        .grid-tile:active { transform: scale(0.95); border-bottom-width: 0; }
-        .gem-reveal { background: linear-gradient(135deg, #10b981, #064e3b) !important; border-bottom-color: #064e3b !important; }
-        .bomb-reveal { background: linear-gradient(135deg, #ef4444, #7f1d1d) !important; border-bottom-color: #450a0a !important; }
-        .disabled { pointer-events: none; opacity: 0.5; }
+        body { background: #0b0e14; color: #fff; font-family: 'Inter', sans-serif; overflow: hidden; height: 100vh; user-select: none; }
+        .tile-btn { background: #1c232d; border-radius: 12px; border-bottom: 4px solid #000; transition: 0.1s; cursor: pointer; }
+        .tile-btn:active { transform: scale(0.92); border-bottom-width: 0; }
+        .gem-active { background: linear-gradient(135deg, #10b981, #065f46) !important; border-bottom: 0 !important; box-shadow: 0 0 15px rgba(16, 185, 129, 0.4); }
+        .bomb-active { background: linear-gradient(135deg, #ef4444, #991b1b) !important; border-bottom: 0 !important; }
+        .disabled-grid { pointer-events: none; opacity: 0.6; }
+        .nav-blur { background: rgba(21, 26, 36, 0.8); backdrop-filter: blur(10px); border-bottom: 1px solid #2d3748; }
     </style>
 </head>
-<body class="flex flex-col h-screen">
+<body class="flex flex-col">
 
-    <div class="p-4 flex justify-between items-center bg-[#151a24] border-b border-gray-800 shadow-xl">
-        <div class="text-xl font-black text-emerald-500 tracking-tighter uppercase italic">Mines<span class="text-white">Pro</span></div>
-        <div class="bg-black/40 px-5 py-1.5 rounded-full border border-emerald-900/30 flex items-center">
-            <span class="text-emerald-400 font-bold mr-2 text-sm">₹</span>
-            <span id="bal-display" class="font-mono font-bold"><?php echo $_SESSION['wallet']; ?></span>
+    <div class="p-4 flex justify-between items-center nav-blur fixed top-0 w-full z-10">
+        <div class="text-xl font-black text-blue-500 tracking-tighter italic">MINES<span class="text-white">PRO</span></div>
+        <div class="bg-black/50 px-4 py-1.5 rounded-full border border-blue-500/30 flex items-center">
+            <span class="text-blue-400 font-bold mr-2">₹</span>
+            <span id="balance-ui" class="font-mono font-bold"><?php echo $_SESSION['wallet']; ?></span>
         </div>
     </div>
 
-    <div class="flex-1 flex flex-col items-center justify-center p-4">
+    <div class="flex-1 flex flex-col items-center justify-center p-4 pt-20">
         
         
-        
-        <div id="game-grid" class="grid grid-cols-5 gap-2.5 w-full max-w-[360px] disabled">
+
+        <div id="grid-container" class="grid grid-cols-5 gap-2.5 w-full max-w-[380px] disabled-grid">
             <?php for($i=0; $i<25; $i++): ?>
-                <div onclick="onTileClick(this)" class="grid-tile aspect-square flex items-center justify-center text-2xl shadow-lg">
-                    <div class="w-1.5 h-1.5 bg-emerald-500/20 rounded-full"></div>
+                <div onclick="handleTileClick(this)" class="tile-btn aspect-square flex items-center justify-center text-2xl shadow-lg">
+                    <div class="w-1.5 h-1.5 bg-blue-500/20 rounded-full"></div>
                 </div>
             <?php endfor; ?>
         </div>
 
-        <div class="w-full max-w-[360px] mt-10 grid grid-cols-2 gap-4">
-            <div class="bg-[#151a24] p-4 rounded-2xl border border-gray-800 text-center">
-                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Multiplier</p>
-                <p id="mult-ui" class="text-2xl font-black text-emerald-400">1x</p>
+        <div class="w-full max-w-[380px] mt-10 grid grid-cols-2 gap-4 px-2">
+            <div class="bg-[#151a21] p-4 rounded-2xl border border-gray-800 text-center">
+                <p class="text-[10px] text-gray-500 font-bold uppercase">Multiplier</p>
+                <p id="mult-text" class="text-2xl font-black text-blue-400">1x</p>
             </div>
-            <div class="bg-[#151a24] p-4 rounded-2xl border border-gray-800 text-center">
-                <p class="text-[10px] text-gray-500 font-bold uppercase tracking-widest mb-1">Profit</p>
-                <p id="profit-ui" class="text-2xl font-black text-white">₹0</p>
+            <div class="bg-[#151a21] p-4 rounded-2xl border border-gray-800 text-center">
+                <p class="text-[10px] text-gray-500 font-bold uppercase">Potential</p>
+                <p id="win-text" class="text-2xl font-black text-white">₹0</p>
             </div>
         </div>
     </div>
 
-    <div class="p-8 bg-[#151a24] rounded-t-[40px] shadow-[0_-15px_40px_rgba(0,0,0,0.7)] border-t border-gray-800">
+    <div class="p-8 bg-[#151a21] rounded-t-[40px] shadow-[0_-15px_50px_rgba(0,0,0,0.8)] border-t border-gray-800">
         <div class="flex gap-3 mb-6">
             <div class="flex-1 bg-black/40 rounded-2xl border border-gray-700 p-3">
                 <p class="text-[10px] text-gray-500 font-bold mb-1 ml-1">BET AMOUNT</p>
-                <input type="number" id="bet-input" value="100" class="bg-transparent w-full font-black outline-none text-emerald-400 text-xl">
+                <input type="number" id="bet-input" value="100" class="bg-transparent w-full font-black outline-none text-blue-400 text-xl">
             </div>
             <button onclick="document.getElementById('bet-input').value *= 2" class="bg-gray-800 px-6 rounded-2xl font-bold border border-gray-700 active:scale-90 transition-all">2x</button>
         </div>
 
-        <button id="main-btn" onclick="handleMainAction()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-lg shadow-lg active:scale-95 transition-all">
-            Bet
+        <button id="main-btn" onclick="toggleGame()" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-lg shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
+            Start Game
         </button>
     </div>
 
     <script>
+        // --- MASTER LOGIC CONFIG ---
+        const config = {
+            baitClicks: 2,        // Pehle 2 click 100% Win
+            profitLimit: 500,     // ₹500 ke baad 95% chance Bomb ka
+            normalWinRate: 35,    // Normal win chance 35%
+            multiplier: 2         // Har click pe paisa double
+        };
+
         let isRunning = false;
         let clickCount = 0;
         let currentBet = 0;
         let currentMult = 1;
 
-        function handleMainAction() {
-            if(!isRunning) startGame(); else cashout();
+        function toggleGame() {
+            if(!isRunning) start(); else cashout();
         }
 
-        function startGame() {
+        function start() {
             const betVal = parseInt(document.getElementById('bet-input').value);
-            const balance = parseInt(document.getElementById('bal-display').innerText);
+            const balance = parseInt(document.getElementById('balance-ui').innerText);
             
-            if(betVal > balance || betVal <= 0) return alert("Paisa kam hai!");
+            if(betVal > balance || betVal <= 0) return alert("Insufficient balance!");
 
             isRunning = true;
             clickCount = 0;
             currentBet = betVal;
             currentMult = 1;
 
-            document.getElementById('game-grid').classList.remove('disabled');
-            document.getElementById('main-btn').innerText = 'Cashout';
-            document.getElementById('main-btn').className = 'w-full bg-orange-500 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-lg';
+            document.getElementById('grid-container').classList.remove('disabled-grid');
+            document.getElementById('main-btn').innerText = 'CASHOUT';
+            document.getElementById('main-btn').classList.replace('bg-blue-600', 'bg-orange-500');
             
-            // Reset grid
-            document.querySelectorAll('.grid-tile').forEach(tile => {
-                tile.className = "grid-tile aspect-square flex items-center justify-center text-2xl shadow-lg";
-                tile.innerHTML = '<div class="w-1.5 h-1.5 bg-emerald-500/20 rounded-full"></div>';
+            // Reset Grid
+            document.querySelectorAll('.tile-btn').forEach(tile => {
+                tile.className = "tile-btn aspect-square flex items-center justify-center text-2xl shadow-lg";
+                tile.innerHTML = '<div class="w-1.5 h-1.5 bg-blue-500/20 rounded-full"></div>';
             });
         }
 
-        function onTileClick(el) {
+        function handleTileClick(el) {
             if(!isRunning || el.innerHTML.includes('i')) return;
             
             clickCount++;
-            let fd = new FormData();
-            fd.append('clicks', clickCount);
-            fd.append('bet', currentBet);
-            fd.append('current_win', currentBet * currentMult);
+            let currentWin = currentBet * currentMult;
+            let result = 'gem';
 
-            fetch('?action=check', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(data => {
-                if(data.status === 'gem') {
-                    el.classList.add('gem-reveal');
-                    el.innerHTML = '<i class="fas fa-gem text-white animate-pulse"></i>';
-                    currentMult = currentMult * data.mult;
-                    updateStats();
-                } else {
-                    el.classList.add('bomb-reveal');
-                    el.innerHTML = '<i class="fas fa-bomb text-white animate-bounce"></i>';
-                    endGame(false);
-                }
-            });
+            // --- SMART RIGGED LOGIC ---
+            if (clickCount <= config.baitClicks) {
+                result = 'gem';
+            } else if (currentWin >= config.profitLimit) {
+                result = (Math.random() * 100 <= 5) ? 'gem' : 'bomb'; // Hard rigged
+            } else {
+                result = (Math.random() * 100 <= config.normalWinRate) ? 'gem' : 'bomb';
+            }
+
+            // --- UI UPDATE ---
+            if(result === 'gem') {
+                el.classList.add('gem-active');
+                el.innerHTML = '<i class="fas fa-gem text-white animate-pulse"></i>';
+                currentMult = currentMult * config.multiplier;
+                updateStats();
+            } else {
+                el.classList.add('bomb-active');
+                el.innerHTML = '<i class="fas fa-bomb text-white animate-bounce"></i>';
+                end(false);
+            }
         }
 
         function updateStats() {
             let win = currentBet * currentMult;
-            document.getElementById('mult-ui').innerText = currentMult + 'x';
-            document.getElementById('profit-ui').innerText = '₹' + win;
-            document.getElementById('main-btn').innerText = `Cashout ₹${win}`;
+            document.getElementById('mult-text').innerText = currentMult + 'x';
+            document.getElementById('win-text').innerText = '₹' + win;
+            document.getElementById('main-btn').innerText = `CASHOUT ₹${win}`;
         }
 
         function cashout() {
-            let win = currentBet * currentMult;
-            updateWallet(win);
-            alert("Congratulations! You won ₹" + win);
-            endGame(true);
+            let winAmount = currentBet * currentMult;
+            syncWallet(winAmount);
+            alert("Jackpot! You won ₹" + winAmount);
+            end(true);
         }
 
-        function endGame(won) {
+        function end(won) {
             isRunning = false;
-            document.getElementById('game-grid').classList.add('disabled');
-            document.getElementById('main-btn').innerText = 'Bet';
-            document.getElementById('main-btn').className = 'w-full bg-emerald-600 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-lg';
+            document.getElementById('grid-container').classList.add('disabled-grid');
+            document.getElementById('main-btn').innerText = 'START GAME';
+            document.getElementById('main-btn').classList.replace('bg-orange-500', 'bg-blue-600');
             
             if(!won) {
-                updateWallet(-currentBet);
-                alert("BOOM! Sab gaya.");
+                syncWallet(-currentBet);
+                alert("BOOM! Better luck next time.");
             }
-            document.getElementById('mult-ui').innerText = '1x';
-            document.getElementById('profit-ui').innerText = '₹0';
+            document.getElementById('mult-text').innerText = '1x';
+            document.getElementById('win-text').innerText = '₹0';
         }
 
-        function updateWallet(amt) {
-            let fd = new FormData();
-            fd.append('amount', amt);
-            fetch('?action=sync', { method: 'POST', body: fd })
+        function syncWallet(amount) {
+            const formData = new FormData();
+            formData.append('amount', amount);
+            fetch('?action=sync_wallet', { method: 'POST', body: formData })
             .then(r => r.json())
-            .then(d => {
-                document.getElementById('bal-display').innerText = d.bal;
-            });
+            .then(data => {
+                document.getElementById('balance-ui').innerText = data.new_balance;
+            }).catch(err => console.error("Sync Error:", err));
         }
     </script>
 </body>
